@@ -1,65 +1,157 @@
-import Image from "next/image";
+"use client";
+
+import React, { useState, useEffect } from "react";
+import Header from "@/components/Header";
+import TaskStats from "@/components/TaskStats";
+import TaskForm from "@/components/TaskForm";
+import TaskFilterBar from "@/components/TaskFilterBar";
+import TaskList from "@/components/TaskList";
+import DocumentationModal from "@/components/DocumentationModal";
 
 export default function Home() {
+  // Start with empty tasks (No example tasks)
+  const [tasks, setTasks] = useState([]);
+  const [isLoaded, setIsLoaded] = useState(false); // Prevents hydration mismatch with localStorage
+
+  // Filter & Search States
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all"); 
+  const [priorityFilter, setPriorityFilter] = useState("all"); 
+
+  // Documentation Modal State
+  const [isDocsOpen, setIsDocsOpen] = useState(false);
+
+  // -------------------------------------------------------------
+  // LOCAL STORAGE PERSISTENCE (Core Client Requirement)
+  // -------------------------------------------------------------
+  
+  // 1. Load data from browser when app starts
+  useEffect(() => {
+    const savedTasks = localStorage.getItem("brightedge_tasks");
+    if (savedTasks) {
+      try {
+        setTasks(JSON.parse(savedTasks));
+      } catch (error) {
+        console.error("Failed to load tasks");
+      }
+    }
+    setIsLoaded(true);
+  }, []);
+
+  // 2. Automatically save data whenever tasks change
+  useEffect(() => {
+    if (isLoaded) {
+      localStorage.setItem("brightedge_tasks", JSON.stringify(tasks));
+    }
+  }, [tasks, isLoaded]);
+
+  // -------------------------------------------------------------
+  // LOGIC HANDLERS
+  // -------------------------------------------------------------
+  const handleAddTask = (newTaskData) => {
+    const newTask = {
+      id: Date.now().toString(),
+      title: newTaskData.title,
+      description: newTaskData.description || "",
+      priority: newTaskData.priority || "medium",
+      completed: false,
+      createdAt: new Date().toISOString(),
+    };
+    setTasks((prevTasks) => [newTask, ...prevTasks]);
+  };
+
+  const handleToggleComplete = (taskId) => {
+    setTasks((prevTasks) =>
+      prevTasks.map((task) =>
+        task.id === taskId ? { ...task, completed: !task.completed } : task
+      )
+    );
+  };
+
+  const handleDeleteTask = (taskId) => {
+    setTasks((prevTasks) => prevTasks.filter((task) => task.id !== taskId));
+  };
+
+  const handleClearCompleted = () => {
+    setTasks((prevTasks) => prevTasks.filter((task) => !task.completed));
+  };
+
+  // -------------------------------------------------------------
+  // COMPUTED / FILTERED TASKS
+  // -------------------------------------------------------------
+  const filteredTasks = tasks.filter((task) => {
+    const matchesSearch =
+      task.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (task.description && task.description.toLowerCase().includes(searchQuery.toLowerCase()));
+
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "active" && !task.completed) ||
+      (statusFilter === "completed" && task.completed);
+
+    const matchesPriority =
+      priorityFilter === "all" || task.priority === priorityFilter;
+
+    return matchesSearch && matchesStatus && matchesPriority;
+  });
+
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter((t) => t.completed).length;
+  const hasCompletedTasks = completedTasks > 0;
+
+  // Wait for local storage to load before rendering to prevent UI flash
+  if (!isLoaded) return null;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.js file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+    // Spiced up background: subtle radial gradient instead of flat color
+    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-slate-900 via-slate-950 to-black text-slate-100 font-sans selection:bg-indigo-500 selection:text-white">
+      
+      <Header onOpenDocs={() => setIsDocsOpen(true)} />
+
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 relative">
+        {/* Subtle background glow effect behind the main content */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full max-w-2xl h-64 bg-indigo-500/10 blur-[100px] rounded-full pointer-events-none"></div>
+
+        <div className="relative z-10 space-y-6">
+          
+          {/* Headline to make client requirements highly visible */}
+          <div className="text-center mb-8">
+            <h2 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-emerald-400">
+              Operations Task Management
+            </h2>
+            <p className="text-sm text-slate-400 mt-2 max-w-xl mx-auto">
+              Create tasks, track completion, and manage team workflow. 
+              <strong className="text-indigo-400 font-medium"> </strong>
+            </p>
+          </div>
+
+          <TaskStats totalTasks={totalTasks} completedTasks={completedTasks} />
+          
+          <TaskForm onAddTask={handleAddTask} />
+          
+          <TaskFilterBar
+            searchQuery={searchQuery}
+            onSearchChange={setSearchQuery}
+            statusFilter={statusFilter}
+            onStatusFilterChange={setStatusFilter}
+            priorityFilter={priorityFilter}
+            onPriorityFilterChange={setPriorityFilter}
+            onClearCompleted={handleClearCompleted}
+            hasCompletedTasks={hasCompletedTasks}
+          />
+          
+          <TaskList
+            tasks={filteredTasks}
+            onToggleComplete={handleToggleComplete}
+            onDeleteTask={handleDeleteTask}
+          />
         </div>
       </main>
+
+      <DocumentationModal
+        isOpen={isDocsOpen}
+        onClose={() => setIsDocsOpen(false)}
+      />
     </div>
   );
 }
